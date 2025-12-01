@@ -109,11 +109,19 @@ const verifyPayment = async (req, res) => {
         // Fetch order from Razorpay to verify amount
         const razorpayOrder = await razorpay.orders.fetch(razorpay_order_id);
         
-        // Verify amount matches
-        const expectedAmount = Math.round(orderDetails.grandTotal * 100);
+        // IMPORTANT: Convert orderDetails.grandTotal to paise
+        // orderDetails.grandTotal is in rupees, convert to paise
+        const expectedAmount = Math.round((orderDetails.grandTotal || 0) * 100);
+        
+        console.log('Amount verification:', {
+            razorpayOrderAmount: razorpayOrder.amount,
+            expectedAmount: expectedAmount,
+            grandTotal: orderDetails.grandTotal
+        });
+        
         if (razorpayOrder.amount !== expectedAmount) {
             return res.status(400).json({ 
-                message: 'Payment verification failed: Amount mismatch' 
+                message: `Payment verification failed: Amount mismatch. Razorpay: ${razorpayOrder.amount}, Expected: ${expectedAmount}` 
             });
         }
 
