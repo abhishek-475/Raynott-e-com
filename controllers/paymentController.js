@@ -125,17 +125,19 @@ const verifyPayment = async (req, res) => {
     }
 };
 
-// Create COD order
+// Create COD order - ALLOWS ALL ORDERS
 const createCODOrder = async (req, res) => {
     try {
         const { orderDetails, shippingAddress } = req.body;
 
-        // Validate COD eligibility
-        if (orderDetails.grandTotal > 10000) {
-            return res.status(400).json({ 
-                message: 'COD not available for orders above ₹10,000' 
-            });
-        }
+        // COD is available for ALL orders - no amount restriction
+        
+        // Calculate grand total including COD charges
+        const subtotal = orderDetails.subtotal || orderDetails.totalAmount;
+        const shipping = orderDetails.shipping || 0;
+        const tax = orderDetails.tax || 0;
+        const codCharges = 50; // Fixed COD charges for all orders
+        const grandTotal = subtotal + shipping + tax + codCharges;
 
         // Create COD order in database
         const order = new Order({
@@ -145,15 +147,15 @@ const createCODOrder = async (req, res) => {
                 quantity: item.quantity,
                 price: item.price
             })),
-            totalAmount: orderDetails.subtotal || orderDetails.totalAmount,
-            shippingFee: orderDetails.shipping || 0,
-            taxAmount: orderDetails.tax || 0,
-            grandTotal: orderDetails.grandTotal,
+            totalAmount: subtotal,
+            shippingFee: shipping,
+            taxAmount: tax,
+            codCharges: codCharges,
+            grandTotal: grandTotal,
             status: 'pending',
             paymentStatus: 'cod',
             paymentMethod: 'cod',
             shippingAddress: shippingAddress,
-            codCharges: 50,
             receipt: `COD_${Date.now()}`
         });
 
