@@ -11,29 +11,52 @@ const razorpay = new Razorpay({
 // Create Razorpay order
 const createOrder = async (req, res) => {
     try {
+        console.log('Creating Razorpay order with data:', req.body);
+        
         const { amount, currency = 'INR', receipt } = req.body;
 
-        // Validate amount
-        if (!amount || amount < 1) {
+        // IMPORTANT: Amount is already in paise from frontend
+        // Don't multiply by 100 again!
+        
+        // Validate amount in paise (₹1 = 100 paise)
+        if (!amount || amount < 100) { // Minimum ₹1 = 100 paise
+            console.error('Invalid amount in paise:', amount);
+            const amountInRupees = (amount || 0) / 100;
             return res.status(400).json({ 
-                message: 'Invalid amount. Minimum amount is ₹1.' 
+                message: `Invalid amount: ₹${amountInRupees}. Minimum amount is ₹1.` 
             });
         }
 
-        if (amount > 1000000) {
+        // Check for maximum amount (₹10,00,000 = 100000000 paise)
+        if (amount > 100000000) {
+            const amountInRupees = amount / 100;
             return res.status(400).json({ 
-                message: 'Amount exceeds maximum limit of ₹10,00,000' 
+                message: `Amount ₹${amountInRupees} exceeds maximum limit of ₹10,00,000` 
             });
         }
+
+        console.log('Amount details:', {
+            received: amount,
+            inPaise: amount,
+            inRupees: amount / 100
+        });
 
         const options = {
-            amount: Math.round(amount * 100), // Convert to paisa
+            amount: amount, // Already in paise, don't multiply!
             currency,
             receipt: receipt || `receipt_${Date.now()}`,
             payment_capture: 1 // Auto-capture payment
         };
 
+        console.log('Creating Razorpay order with options:', options);
+        
         const razorpayOrder = await razorpay.orders.create(options);
+        
+        console.log('Razorpay order created successfully:', {
+            id: razorpayOrder.id,
+            amount: razorpayOrder.amount,
+            amountInRupees: razorpayOrder.amount / 100
+        });
         
         res.json({
             id: razorpayOrder.id,
@@ -44,12 +67,20 @@ const createOrder = async (req, res) => {
         });
     } catch (error) {
         console.error('Error creating Razorpay order:', error);
+        console.error('Error details:', {
+            message: error.message,
+            stack: error.stack,
+            response: error.response?.data
+        });
+        
         res.status(500).json({ 
             message: 'Failed to create payment order',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+            error: error.message,
+            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 };
+
 
 // Verify Razorpay payment and save order
 const verifyPayment = async (req, res) => {
